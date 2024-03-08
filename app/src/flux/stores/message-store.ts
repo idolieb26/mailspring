@@ -3,13 +3,14 @@ import * as Actions from '../actions';
 import { Message } from '../models/message';
 import { Thread } from '../models/thread';
 import DatabaseStore from './database-store';
+import SidebarStore from '../../../internal_packages/account-sidebar/lib/sidebar-store';
 import { TaskFactory } from '../tasks/task-factory';
 import FocusedPerspectiveStore from './focused-perspective-store';
 import FocusedContentStore from './focused-content-store';
 import * as ExtensionRegistry from '../../registries/extension-registry';
-import electron from 'electron';
-import { MessageViewExtension } from 'mailspring-exports';
+import { MessageViewExtension, AccountStore } from 'mailspring-exports';
 import { DatabaseChangeRecord } from './database-change-record';
+const fetch = require('node-fetch');
 
 const FolderNamesHiddenByDefault = ['spam', 'trash'];
 
@@ -23,6 +24,7 @@ class _MessageStore extends MailspringStore {
   _itemsLoading: boolean;
   _lastMarkedAsReadThreadId?: string;
   _onFocusChangedTimer?: NodeJS.Timeout;
+  _serverUrl: string;
 
   constructor() {
     super();
@@ -96,6 +98,7 @@ class _MessageStore extends MailspringStore {
     this._itemsLoading = false;
     this._showingHiddenItems = false;
     this._thread = null;
+    this._serverUrl = 'http://localhost';
   }
 
   _registerListeners() {
@@ -114,8 +117,55 @@ class _MessageStore extends MailspringStore {
     return this.trigger();
   }
 
+  _onChangeServerUrl(newUrl: string) {
+    this._serverUrl = newUrl;
+  }
+
   _onDataChanged(change: DatabaseChangeRecord<any>) {
+    if (change.objectClass === 'Message') {
+      // send change.objects to backend via api
+      // change.objectsRawJSON() to get a json response
+      change.objectsRawJSON.forEach(async (item) => {
+        if (!item.hasOwnProperty('snippet') || item.draft === true) {
+          return;
+        }
+        const primaryAddress = AccountStore.accountForId(item.aid).emailAddress;
+        try {
+          fetch(
+            `${this._serverUrl}/rest/v1/client/email`,
+            {
+              method: 'POST',
+              headers: {
+                "Content-Type": "application/json",
+                'x-hasura-admin-secret': "trackeradmin"
+              },
+              body: JSON.stringify({
+                primaryAddress,
+                data: item
+              }),
+            }
+          )
+            .then(response => {
+              if (!response.ok) {
+                response.text().then(text => console.log("error: ", text));
+                throw new Error(`HTTP error! Status: ${response.status}`);
+              }
+              return response.json();
+            })
+            .then(responseData => {
+              console.log('POST request successful. Response:', responseData);
+            })
+            .catch(error => {
+              console.error('Fetch error:', error);
+            });
+        } catch (error) {
+
+        }
+      });
+    }
+
     if (!this._thread) return;
+
 
     if (change.objectClass === Message.name) {
       const inDisplayedThread = change.objects.some(obj => obj.threadId === this._thread.id);

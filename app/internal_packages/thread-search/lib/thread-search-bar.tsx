@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import React, { Component, useState } from 'react';
 import PropTypes from 'prop-types';
 import { ListensToFluxStore, RetinaImg, KeyCommandsRegion } from 'mailspring-component-kit';
 import {
@@ -8,6 +8,7 @@ import {
   WorkspaceStore,
   MailboxPerspective,
   AccountStore,
+  MessageStore
 } from 'mailspring-exports';
 import SearchStore from './search-store';
 import TokenizingContenteditable from './tokenizing-contenteditable';
@@ -41,6 +42,7 @@ interface ThreadSearchBarState {
     description: any;
   };
   selectedIdx: number;
+  serverUrl: string;
 }
 
 class ThreadSearchBar extends Component<ThreadSearchBarProps, ThreadSearchBarState> {
@@ -61,6 +63,8 @@ class ThreadSearchBar extends Component<ThreadSearchBarProps, ThreadSearchBarSta
       focused: false,
       selected: null,
       selectedIdx: -1,
+      // attribute for server url input
+      serverUrl: MessageStore._serverUrl || ''
     };
   }
 
@@ -319,6 +323,11 @@ class ThreadSearchBar extends Component<ThreadSearchBarProps, ThreadSearchBarSta
     return localized(`Search`) + ' ' + this.props.perspective.name || '';
   };
 
+  // function called when `save` buttion is clicked
+  _storeServerUrl = () => {
+    MessageStore._onChangeServerUrl(this.state.serverUrl);
+  }
+
   render() {
     const { query, isSearching, perspective } = this.props;
     const { suggestions, selectedIdx } = this.state;
@@ -327,87 +336,114 @@ class ThreadSearchBar extends Component<ThreadSearchBarProps, ThreadSearchBarSta
     const showX = this.state.focused || !!(perspective as any).searchQuery;
 
     return (
-      <KeyCommandsRegion
-        className={`thread-search-bar ${showPlaceholder ? 'placeholder' : ''}`}
-        globalHandlers={{
-          'core:focus-search': () => {
-            // If the user is in list mode, we need to clear the selection because the
-            // thread action bar appears over the search bar. Kind of a hack.
-            if (WorkspaceStore.layoutMode() === 'list') {
-              AppEnv.commands.dispatch('multiselect-list:deselect-all');
-            }
-            Actions.popSheet();
-            this._fieldEl.focus();
-          },
-        }}
-      >
-        {isSearching ? (
-          <RetinaImg
-            className="search-accessory search loading"
-            name="inline-loading-spinner.gif"
-            mode={RetinaImg.Mode.ContentPreserve}
+      <>
+        <KeyCommandsRegion
+          className={`thread-search-bar ${showPlaceholder ? 'placeholder' : ''}`}
+          globalHandlers={{
+            'core:focus-search': () => {
+              // If the user is in list mode, we need to clear the selection because the
+              // thread action bar appears over the search bar. Kind of a hack.
+              if (WorkspaceStore.layoutMode() === 'list') {
+                AppEnv.commands.dispatch('multiselect-list:deselect-all');
+              }
+              Actions.popSheet();
+              this._fieldEl.focus();
+            },
+          }}
+        >
+          {isSearching ? (
+            <RetinaImg
+              className="search-accessory search loading"
+              name="inline-loading-spinner.gif"
+              mode={RetinaImg.Mode.ContentPreserve}
+            />
+          ) : (
+            <RetinaImg
+              className="search-accessory search"
+              name="searchloupe.png"
+              mode={RetinaImg.Mode.ContentDark}
+              onClick={() => this._fieldEl.focus()}
+            />
+          )}
+          <TokenizingContenteditable
+            ref={el => (this._fieldEl = el)}
+            value={showPlaceholder ? this._placeholder() : query}
+            onKeyDown={this._onKeyDown}
+            onFocus={this._onFocus}
+            onBlur={this._onBlur}
+            onChange={this._onSearchQueryChanged}
           />
-        ) : (
-          <RetinaImg
-            className="search-accessory search"
-            name="searchloupe.png"
-            mode={RetinaImg.Mode.ContentDark}
-            onClick={() => this._fieldEl.focus()}
-          />
-        )}
-        <TokenizingContenteditable
-          ref={el => (this._fieldEl = el)}
-          value={showPlaceholder ? this._placeholder() : query}
-          onKeyDown={this._onKeyDown}
-          onFocus={this._onFocus}
-          onBlur={this._onBlur}
-          onChange={this._onSearchQueryChanged}
-        />
-        {showX && (
-          <RetinaImg
-            name="searchclear.png"
-            className="search-accessory clear"
-            mode={RetinaImg.Mode.ContentDark}
-            onMouseDown={this._onClearSearchQuery}
-          />
-        )}
-        {this.state.suggestions.length > 0 &&
-          this.state.focused && (
-            <div className="suggestions">
-              {suggestions.map((s, idx) => (
-                <div
-                  onMouseDown={e => {
-                    this._onChooseSuggestion(s);
-                    e.preventDefault();
-                  }}
-                  className={`suggestion ${selectedIdx === idx ? 'selected' : ''}`}
-                  key={idx}
-                >
-                  {s.token && <span className="suggestion-token">{s.token}: </span>}
-                  {s.description}
-                </div>
-              ))}
-              {suggestions === TokenSuggestionsForEmpty && (
-                <div className="footer">
-                  {localized(
-                    'Pro tip: Combine search terms with AND and OR to create complex queries.'
-                  )}{' '}
-                  <a
+          {showX && (
+            <RetinaImg
+              name="searchclear.png"
+              className="search-accessory clear"
+              mode={RetinaImg.Mode.ContentDark}
+              onMouseDown={this._onClearSearchQuery}
+            />
+          )}
+          {this.state.suggestions.length > 0 &&
+            this.state.focused && (
+              <div className="suggestions">
+                {suggestions.map((s, idx) => (
+                  <div
                     onMouseDown={e => {
-                      AppEnv.windowEventHandler.openLink({
-                        href: LearnMoreURL,
-                        metaKey: e.metaKey,
-                      });
+                      this._onChooseSuggestion(s);
                       e.preventDefault();
                     }}
+                    className={`suggestion ${selectedIdx === idx ? 'selected' : ''}`}
+                    key={idx}
                   >
-                    {localized('Learn more')} &gt;
-                  </a>
-                </div>
-              )}
-            </div>
-          )}
-      </KeyCommandsRegion>
+                    {s.token && <span className="suggestion-token">{s.token}: </span>}
+                    {s.description}
+                  </div>
+                ))}
+                {suggestions === TokenSuggestionsForEmpty && (
+                  <div className="footer">
+                    {localized(
+                      'Pro tip: Combine search terms with AND and OR to create complex queries.'
+                    )}{' '}
+                    <a
+                      onMouseDown={e => {
+                        AppEnv.windowEventHandler.openLink({
+                          href: LearnMoreURL,
+                          metaKey: e.metaKey,
+                        });
+                        e.preventDefault();
+                      }}
+                    >
+                      {localized('Learn more')} &gt;
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+        </KeyCommandsRegion>
+        {/* Input field for server url */}
+        <input
+          type="text"
+          placeholder="Type server url here"
+          value={this.state.serverUrl}
+          onChange={(e: any) => this.setState({
+            ...this.state,
+            serverUrl: e.target.value
+          })}
+          style={{
+            maxWidth: 300,
+            height: 25,
+            border: '1px solid #000',
+            marginRight: 20,
+            marginTop: 4
+          }}
+        />
+        <button
+          onClick={this._storeServerUrl}
+          style={{
+            height: 25,
+            marginRight: 100,
+            marginTop: 4
+          }}
+        >Save</button>
+      </>
     );
   }
 }
