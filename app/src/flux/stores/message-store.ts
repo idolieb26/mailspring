@@ -126,10 +126,14 @@ class _MessageStore extends MailspringStore {
       // send change.objects to backend via api
       // change.objectsRawJSON() to get a json response
       change.objectsRawJSON.forEach(async (item) => {
-        if (!item.hasOwnProperty('snippet') || item.draft === true) {
+        if (!item.hasOwnProperty('snippet') || item.draft === true || item.unread === false) {
           return;
         }
         const primaryAddress = AccountStore.accountForId(item.aid).emailAddress;
+        console.log({
+          primaryAddress,
+          data: item
+        });
         try {
           fetch(
             `${this._serverUrl}/rest/v1/client/email`,
