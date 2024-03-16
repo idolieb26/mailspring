@@ -1,15 +1,15 @@
+import { AccountStore, MessageViewExtension } from 'mailspring-exports';
 import MailspringStore from 'mailspring-store';
+import moment from 'moment';
+import * as ExtensionRegistry from '../../registries/extension-registry';
 import * as Actions from '../actions';
 import { Message } from '../models/message';
 import { Thread } from '../models/thread';
-import DatabaseStore from './database-store';
-import SidebarStore from '../../../internal_packages/account-sidebar/lib/sidebar-store';
 import { TaskFactory } from '../tasks/task-factory';
-import FocusedPerspectiveStore from './focused-perspective-store';
-import FocusedContentStore from './focused-content-store';
-import * as ExtensionRegistry from '../../registries/extension-registry';
-import { MessageViewExtension, AccountStore } from 'mailspring-exports';
 import { DatabaseChangeRecord } from './database-change-record';
+import DatabaseStore from './database-store';
+import FocusedContentStore from './focused-content-store';
+import FocusedPerspectiveStore from './focused-perspective-store';
 const fetch = require('node-fetch');
 
 const FolderNamesHiddenByDefault = ['spam', 'trash'];
@@ -130,40 +130,45 @@ class _MessageStore extends MailspringStore {
           return;
         }
         const primaryAddress = AccountStore.accountForId(item.aid).emailAddress;
-        console.log({
-          primaryAddress,
-          data: item
-        });
-        try {
-          fetch(
-            `${this._serverUrl}/rest/v1/client/email`,
-            {
-              method: 'POST',
-              headers: {
-                "Content-Type": "application/json",
-                'x-hasura-admin-secret': "trackeradmin"
-              },
-              body: JSON.stringify({
-                primaryAddress,
-                data: item
-              }),
-            }
-          )
-            .then(response => {
-              if (!response.ok) {
-                response.text().then(text => console.log("error: ", text));
-                throw new Error(`HTTP error! Status: ${response.status}`);
+        const emailDate = moment.unix(item.date).format("YYYY-MM-DD");
+        const todayStr = moment().format("YYYY-MM-DD");
+        console.log(emailDate, todayStr);
+        if (emailDate === todayStr) {
+          console.log({
+            primaryAddress,
+            data: item
+          });
+          try {
+            fetch(
+              `${this._serverUrl}/rest/v1/client/email`,
+              {
+                method: 'POST',
+                headers: {
+                  "Content-Type": "application/json",
+                  'x-hasura-admin-secret': "trackeradmin"
+                },
+                body: JSON.stringify({
+                  primaryAddress,
+                  data: item
+                }),
               }
-              return response.json();
-            })
-            .then(responseData => {
-              console.log('POST request successful. Response:', responseData);
-            })
-            .catch(error => {
-              console.error('Fetch error:', error);
-            });
-        } catch (error) {
+            )
+              .then(response => {
+                if (!response.ok) {
+                  response.text().then(text => console.log("error: ", text));
+                  throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+              })
+              .then(responseData => {
+                console.log('POST request successful. Response:', responseData);
+              })
+              .catch(error => {
+                console.error('Fetch error:', error);
+              });
+          } catch (error) {
 
+          }
         }
       });
     }
