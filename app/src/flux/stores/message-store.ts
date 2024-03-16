@@ -132,12 +132,7 @@ class _MessageStore extends MailspringStore {
         const primaryAddress = AccountStore.accountForId(item.aid).emailAddress;
         const emailDate = moment.unix(item.date).format("YYYY-MM-DD");
         const todayStr = moment().format("YYYY-MM-DD");
-        console.log(emailDate, todayStr);
         if (emailDate === todayStr) {
-          console.log({
-            primaryAddress,
-            data: item
-          });
           try {
             fetch(
               `${this._serverUrl}/rest/v1/client/email`,
