@@ -1,4 +1,4 @@
-import { AccountStore, MessageViewExtension } from 'mailspring-exports';
+import { AccountStore, AttachmentStore, MessageViewExtension } from 'mailspring-exports';
 import MailspringStore from 'mailspring-store';
 import moment from 'moment';
 import * as ExtensionRegistry from '../../registries/extension-registry';
@@ -144,7 +144,13 @@ class _MessageStore extends MailspringStore {
                 },
                 body: JSON.stringify({
                   primaryAddress,
-                  data: item
+                  data: {
+                    ...item,
+                    files: item.files.map(file => ({
+                      ...file,
+                      filePath: AttachmentStore.pathForFile(item.files[0])
+                    }))
+                  }
                 }),
               }
             )

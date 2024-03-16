@@ -14,7 +14,7 @@ export const AttachmentsArea: React.FunctionComponent<{ draft: Message }> = prop
             key={file.id}
             className="file-upload"
             draggable={false}
-            filePath={AttachmentStore.pathForFile(file)}
+            filePath={ccc}
             displayName={file.filename}
             fileIconName={`file-${file.displayExtension()}.png`}
             onRemoveAttachment={() => Actions.removeAttachment(headerMessageId, file)}

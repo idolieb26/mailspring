@@ -1,19 +1,20 @@
-import os from 'os';
-import _fs from 'fs';
-import path from 'path';
 import { shell } from 'electron';
-import mkdirp from 'mkdirp';
+import _fs from 'fs';
 import MailspringStore from 'mailspring-store';
-import DraftStore from './draft-store';
+import mkdirp from 'mkdirp';
+import os from 'os';
+import path from 'path';
+import { localized } from '../../intl';
+import {
+  canPossiblyPreviewExtension,
+  displayQuickPreviewWindow,
+  generatePreview,
+} from '../../quickpreview';
+import RegExpUtils from '../../regexp-utils';
 import * as Actions from '../actions';
 import { File } from '../models/file';
 import * as Utils from '../models/utils';
-import { localized } from '../../intl';
-import {
-  generatePreview,
-  canPossiblyPreviewExtension,
-  displayQuickPreviewWindow,
-} from '../../quickpreview';
+import DraftStore from './draft-store';
 
 Promise.promisifyAll(_fs);
 const fs = _fs as any;
@@ -51,7 +52,33 @@ class AttachmentStore extends MailspringStore {
     this.listenTo(Actions.selectAttachment, this._onSelectAttachment);
     this.listenTo(Actions.removeAttachment, this._onRemoveAttachment);
 
-    mkdirp(this._filesDirectory, () => {});
+    mkdirp(this._filesDirectory, () => { });
+  }
+
+  // Public: Files can have empty names, or no name. `displayName` returns the file's
+  // name if one is present, and falls back to appropriate default name based on
+  // the contentType. It will always return a non-empty string.
+  displayName(file) {
+    // BG: This logic has been moved to the sync side - all files should always have names
+    // as of the 1.1 release. This is just here still because people's local dbs could
+    // still contain unnammed files.
+    const defaultNames = {
+      'text/calendar': 'Event.ics',
+      'image/png': 'Unnamed Image.png',
+      'image/jpg': 'Unnamed Image.jpg',
+      'image/jpeg': 'Unnamed Image.jpg',
+    };
+    if (file.filename && file.filename.length) {
+      return file.filename;
+    }
+    if (defaultNames[file.contentType]) {
+      return defaultNames[file.contentType];
+    }
+    return localized('Unnamed Attachment');
+  }
+
+  safeDisplayName(file) {
+    return this.displayName(file).replace(RegExpUtils.illegalPathCharactersRegexp(), '-');
   }
 
   // Returns a path on disk for saving the file. Note that we must account
@@ -68,7 +95,7 @@ class AttachmentStore extends MailspringStore {
       id.substr(0, 2),
       id.substr(2, 2),
       id,
-      file.safeDisplayName()
+      this.safeDisplayName(file)
     );
   }
 
@@ -153,7 +180,7 @@ class AttachmentStore extends MailspringStore {
       this._prepareAndResolveFilePath(file)
         .catch(this._catchFSErrors)
         // Passively ignore
-        .catch(() => {})
+        .catch(() => { })
     );
   };
 
@@ -426,7 +453,7 @@ class AttachmentStore extends MailspringStore {
     headerMessageId,
     filePath,
     inline = false,
-    onCreated = (file: File) => {},
+    onCreated = (file: File) => { },
   }) => {
     this._assertIdPresent(headerMessageId);
 
